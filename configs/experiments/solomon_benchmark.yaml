@@ -1,0 +1,62 @@
+# Solomon Benchmark Experiments
+# =============================
+# Extends default.yaml with Solomon-specific settings
+
+defaults:
+  - ../default
+
+experiment:
+  name: solomon_benchmark
+  num_runs: 10
+  seeds: [42, 123, 456, 789, 1011]
+
+# Solomon instances to run
+instances:
+  - c101
+  - c102
+  - c201
+  - c202
+  - r101
+  - r102
+  - r201
+  - r202
+  - rc101
+  - rc102
+  - rc201
+  - rc202
+
+# Comparison methods
+methods:
+  - name: hnsw_alns
+    enabled: true
+    config:
+      hnsw:
+        M: 16
+        ef_construction: 200
+        ef_search: 50
+        k: 10
+      alns:
+        max_iterations: 5000
+        
+  - name: standard_alns
+    enabled: true
+    config:
+      alns:
+        max_iterations: 5000
+        use_hnsw: false
+        
+  - name: ortools
+    enabled: true
+    config:
+      time_limit: 60
+
+# Metrics to collect
+metrics:
+  - total_cost
+  - cv                       # Coefficient of variation
+  - jains_index              # Jain's fairness index
+  - num_routes
+  - cpu_time
+  - memory_mb
+  - recall_at_k              # HNSW accuracy metric
+

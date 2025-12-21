@@ -1,0 +1,79 @@
+# Ablation Study Configuration
+# ============================
+# Tests impact of individual components
+
+defaults:
+  - ../default
+
+experiment:
+  name: ablation_study
+  num_runs: 5
+
+# Ablation variants
+ablations:
+  # Full model
+  - name: full_model
+    description: "Complete HNSW-FairVRP"
+    enabled: true
+    config:
+      hnsw:
+        enabled: true
+      fairness:
+        alpha: 1.0
+        beta: 0.3
+        gamma: 0.2
+  
+  # Without HNSW (brute-force)
+  - name: no_hnsw
+    description: "ALNS without HNSW acceleration"
+    enabled: true
+    config:
+      hnsw:
+        enabled: false
+  
+  # Without fairness features in HNSW
+  - name: no_fairness_features
+    description: "HNSW without fairness gradients"
+    enabled: true
+    config:
+      hnsw:
+        enabled: true
+        dim: 9  # Remove delta_cv and delta_jain
+      fairness:
+        alpha: 1.0
+        beta: 0.0
+        gamma: 0.0
+  
+  # Cost-only objective
+  - name: cost_only
+    description: "Minimize cost only"
+    enabled: true
+    config:
+      fairness:
+        alpha: 1.0
+        beta: 0.0
+        gamma: 0.0
+  
+  # Fairness-focused
+  - name: fairness_focused
+    description: "Strong fairness weight"
+    enabled: true
+    config:
+      fairness:
+        alpha: 0.5
+        beta: 0.5
+        gamma: 0.4
+
+# HNSW parameter sensitivity
+hnsw_sensitivity:
+  M_values: [8, 16, 32, 64]
+  ef_construction_values: [100, 200, 400]
+  ef_search_values: [25, 50, 100, 200]
+  k_values: [5, 10, 20, 50]
+
+# Fairness weight Pareto analysis
+pareto_analysis:
+  alpha_range: [0.2, 0.4, 0.6, 0.8, 1.0]
+  beta_range: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+  gamma_range: [0.0, 0.1, 0.2, 0.3, 0.4]
+
