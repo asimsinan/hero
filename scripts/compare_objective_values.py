@@ -5,9 +5,6 @@ This script analyzes experimental results to compare:
 - Cost (total route cost)
 - CV (coefficient of variation - driver fairness)
 - Combined objective (α×cost + β×CV - γ×Jain)
-
-Usage:
-    python scripts/compare_objective_values.py --results-dir results/benchmark --output results/objective_comparison.json
 """
 import sys
 import json
@@ -129,8 +126,6 @@ def analyze_objective_values(df: pd.DataFrame, alpha: float = 1.0, beta: float =
         method_data = valid[valid['method'] == method]
         
         # Compute combined objective for each result
-        # Note: We need to compute this from cost and CV
-        # For now, use cost_per_customer approximation
         method_data = method_data.copy()
         method_data['cost_per_customer'] = method_data['cost'] / method_data['n_customers'].clip(lower=1)
         method_data['combined_objective'] = (

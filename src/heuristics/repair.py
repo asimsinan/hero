@@ -131,9 +131,7 @@ class HNSWGreedyRepair(RepairOperator):
             
             # Get candidates - use HNSW to identify promising routes, then check all positions
             if self.hnsw_manager is not None:
-                # OPTIMIZED: Use HNSW candidates directly - they already identify good routes
                 # HNSW manager handles all failures internally with optimized linear scan
-                # No try-except needed - HNSW never fails now (0% failure rate)
                 hnsw_candidates = self.hnsw_manager.find_insertion_candidates(
                     customer_id, solution, k=self.k_candidates
                 )
@@ -144,8 +142,6 @@ class HNSWGreedyRepair(RepairOperator):
                 for c in hnsw_candidates:
                     suggested_routes.add(c.route_id)
                 
-                # OPTIMIZATION: Use lightweight centroid-based route selection
-                # Instead of averaging over all customers, use route centroid or first customer
                 customer = instance.get_customer(customer_id)
                 cx, cy = customer.x, customer.y
                 

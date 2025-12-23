@@ -13,15 +13,10 @@ import glob
 
 def parse_log_file(log_path: Path) -> Dict:
     """Parse log file and extract HNSW failure information.
-    
-    FIXED: Tracks queries and failures per stats line to calculate accurate failure rates.
-    Only counts failures that occur between consecutive stats lines to avoid double-counting.
     """
     failures = []
     successes = []
     
-    # FIXED: Track queries and failures per stats line (per run)
-    # Each stats line represents one run, count failures only for that run
     stats_lines = []  # Track (line_index, method, queries) tuples
     failures_by_stats = defaultdict(int)  # Track failures per stats line index
     
@@ -47,9 +42,6 @@ def parse_log_file(log_path: Path) -> Dict:
                     failures_by_stats[i] = failures_from_stats
     
     # Second pass: Count failures between consecutive stats lines
-    # Each failure is counted only for the stats line immediately before it
-    # This ensures we don't double-count failures across runs
-    # NOTE: If failures are already in stats line, we skip this counting
     for i, line in enumerate(lines):
         if 'HNSW query failed for customer' in line:
             # Find the most recent stats line before this failure
@@ -89,14 +81,12 @@ def parse_log_file(log_path: Path) -> Dict:
             }
             failures.append(failure_info)
     
-    # FIXED: Aggregate failures per method from stats lines
     queries_by_method = defaultdict(int)
     failures_by_method = defaultdict(int)
     for stats_line_data in stats_lines:
         if len(stats_line_data) == 4:  # New format with failures
             stats_idx, method, queries, failures_from_stats = stats_line_data
             queries_by_method[method] += queries
-            # FIXED: Prefer failures from stats line (most accurate), otherwise use counted failures
             if failures_from_stats > 0:
                 failures_by_method[method] += failures_from_stats
             else:
@@ -106,7 +96,7 @@ def parse_log_file(log_path: Path) -> Dict:
             queries_by_method[method] += queries
             failures_by_method[method] += failures_by_stats[stats_idx]
     
-    # FIXED: Calculate accurate failure rates
+
     total_queries = sum(queries_by_method.values())
     total_failures = sum(failures_by_method.values())
     failure_rate = (total_failures / total_queries * 100) if total_queries > 0 else 0.0
@@ -116,7 +106,6 @@ def parse_log_file(log_path: Path) -> Dict:
         'failures': failures,
         'total_successes': sum(successes),
         'total_failures': len(failures),
-        # FIXED: Add accurate statistics
         'total_queries': total_queries,
         'failure_rate': failure_rate,
         'success_rate': success_rate,
@@ -325,7 +314,7 @@ def main():
     print(f"Total queries: {data.get('total_queries', 0)}")
     print(f"Total successes: {data.get('total_successes', 0)}")
     
-    # FIXED: Use accurate failure rate from data
+   
     if 'failure_rate' in data:
         print(f"Failure rate: {data['failure_rate']:.1f}%")
         print(f"Success rate: {data['success_rate']:.1f}%")
@@ -336,7 +325,7 @@ def main():
         print(f"Success rate: {success_rate:.1f}%")
     print()
     
-    # FIXED: Print per-method breakdown
+
     if 'queries_by_method' in data and 'failures_by_method' in data:
         print("PER-METHOD BREAKDOWN:")
         for method in sorted(data['queries_by_method'].keys()):

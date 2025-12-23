@@ -121,12 +121,12 @@ class HNSWManager:
     _n_skipped_hnsw: int = field(default=0, init=False)  # Track when HNSW is skipped (small indices)
     _n_optimized_scan_fallbacks: int = field(default=0, init=False)  # Track optimized linear scan fallbacks
     
-    # SOTA: Health monitoring for adaptive parameters (inspired by LSM-VEC, HENN)
+    #Health monitoring for adaptive parameters (inspired by LSM-VEC, HENN)
     _failure_rate_by_size: Dict[str, float] = field(default_factory=dict, init=False, repr=False)  # Track failure rate per size range
     _query_count_by_size: Dict[str, int] = field(default_factory=dict, init=False, repr=False)  # Track query count per size range
     _failure_count_by_size: Dict[str, int] = field(default_factory=dict, init=False, repr=False)  # Track failure count per size range
     
-    # SOTA: Track changed routes for topology-aware updates
+    #Track changed routes for topology-aware updates
     _changed_routes: set = field(default_factory=set, init=False)
     _last_solution_hash: Optional[int] = field(default=None, init=False)
     _last_rebuild_iteration: int = field(default=-1, init=False)  # Track last rebuild iteration for cooldown
@@ -314,21 +314,21 @@ class HNSWManager:
         requested_k = k * 2  # Get 2x for filtering
         index_size = len(self._index)
         
-        # SOTA FALLBACK: For small indices, use optimized vectorized linear scan
-        # SOTA: Adaptive neighbor selection with health monitoring (inspired by LSM-VEC, HENN)
+        #For small indices, use optimized vectorized linear scan
+        #Adaptive neighbor selection with health monitoring (inspired by LSM-VEC, HENN)
         # Instead of brute force, use feature-space linear scan with early termination
         # This is more sophisticated and better for publication
         # IMPROVEMENT: Only skip HNSW for very small indices where overhead isn't worth it
         # For all other indices, use HNSW with adaptive parameters based on health monitoring
         
-        # SOTA: Health-based adaptive k selection
+        # Health-based adaptive k selection
         size_range = self._get_size_range(index_size)
         health_factor = self._get_health_factor(size_range)  # 0.0 (unhealthy) to 1.0 (healthy)
         
         if index_size < 50:
             # Very small indices (<50): use optimized linear scan in feature space
             # HNSW overhead not worth it for such small indices
-            # SOTA: Vectorized distance computation with early termination
+            # Vectorized distance computation with early termination
             self._n_skipped_hnsw += 1
             logger.debug(f"Using optimized linear scan for very small index (size={index_size} < 50)")
             candidates = self._optimized_linear_scan(query, k, solution)
@@ -349,22 +349,16 @@ class HNSWManager:
         elif index_size < 500:
             # Medium indices (200-500): SOTA probabilistic approach (inspired by LSM-VEC)
             # These are the problematic indices - use very conservative k
-            # FIX: Don't let requested_k cap the adaptive k - trust the adaptive logic
             base_max_k = max(10, int(index_size * 0.15))  # Very conservative: 15% instead of 60%
             max_k = max(10, int(base_max_k * health_factor))
             # CRITICAL FIX: For medium indices, trust adaptive max_k over requested_k
             actual_k = min(max_k, index_size)  # Don't cap with requested_k for problematic indices
         elif index_size < 1000:
             # Medium-large indices (500-1000): SOTA adaptive neighbor selection
-            # FIX: Don't let requested_k cap the adaptive k - trust the adaptive logic
             base_max_k = max(15, int(index_size * 0.12))  # Conservative: 12% instead of 60%
             max_k = max(15, int(base_max_k * health_factor))
-            # CRITICAL FIX: For medium-large indices, trust adaptive max_k over requested_k
             actual_k = min(max_k, index_size)  # Don't cap with requested_k for problematic indices
         elif index_size > 2000:
-            # Large index (>2000): be conservative with k to reduce fragmentation issues
-            # But still use HNSW - this is our contribution!
-            # Use smaller k to reduce query complexity on fragmented indices
             base_max_k = max(10, int(index_size * 0.02))  # Max 2% of index (removed requested_k cap)
             max_k = max(10, int(base_max_k * health_factor))
             # For large indices, trust adaptive max_k
@@ -373,11 +367,8 @@ class HNSWManager:
             # Normal index (1000-2000): can use moderate k with health factor
             base_max_k = requested_k
             max_k = max(15, int(base_max_k * health_factor))
-            actual_k = min(requested_k, max_k, index_size)  # Can use requested_k for normal indices
-        
-        # SOTA: Additional safety based on health monitoring
-        # Never exceed safe limits even if health factor suggests higher k
-        # Note: actual_k is already calculated above with adaptive logic, but add final safety check
+            actual_k = min(requested_k, max_k, index_size)
+
         if index_size < 100:
             # For small indices, never exceed 30% (more conservative)
             actual_k = min(actual_k, max(5, int(index_size * 0.3)))
@@ -394,10 +385,10 @@ class HNSWManager:
         if actual_k == 0:
             return []
         
-        # SOTA: Adaptive ef_search with larger margin for reliability (inspired by LSM-VEC)
+        # Adaptive ef_search with larger margin for reliability (inspired by LSM-VEC)
         # Use health factor to determine ef_search margin
         current_ef = self._index.config.ef_search
-        # SOTA: Larger margin for medium indices (where failures are common)
+        # Larger margin for medium indices (where failures are common)
         if index_size < 500:
             # Medium indices: use larger margin (3x k) for reliability
             ef_margin = max(20, int(actual_k * 3))
@@ -427,15 +418,12 @@ class HNSWManager:
             # SOTA: Track successful query for health monitoring
             self._record_successful_query(size_range)
         except Exception as e:
-            # SOTA FALLBACK: Use optimized linear scan instead of brute force
-            # This is more sophisticated and better for publication
             self._n_hnsw_failures += 1
-            self._n_optimized_scan_fallbacks += 1  # Track optimized linear scan fallback
+            self._n_optimized_scan_fallbacks += 1
             
-            # SOTA: Track failed query for health monitoring
+            # Track failed query for health monitoring
             self._record_failed_query(size_range)
             
-            # INVESTIGATION: Log detailed error information at INFO level for analysis
             error_msg = str(e)
             error_type = type(e).__name__
             logger.info(
@@ -446,7 +434,7 @@ class HNSWManager:
                 f"HNSW query failed, using optimized linear scan fallback "
                 f"(k={actual_k}, ef={required_ef}, size={index_size}, health={health_factor:.2f}): {e}"
             )
-            # SOTA FALLBACK: Use optimized linear scan instead of brute force
+            # Use optimized linear scan instead of brute force
             logger.info(
                 f"Optimized linear scan fallback: HNSW query failed for customer {customer_id}, "
                 f"using vectorized linear scan (size={index_size}, k={actual_k}, ef={required_ef}, health={health_factor:.2f})"
@@ -486,11 +474,11 @@ class HNSWManager:
             if route.load + customer_demand > self._instance.vehicles[route_id].capacity:
                 continue
             
-            # OPTIMIZATION: Clamp position (avoid recomputing)
+            # Clamp position (avoid recomputing)
             actual_pos = min(position, len(route.customers))
             
             # Compute insertion cost (skip if we have enough candidates)
-            # OPTIMIZATION: Lazy cost computation - only compute if needed
+            # Lazy cost computation - only compute if needed
             if len(candidates) < k:
                 insertion_cost = self._compute_insertion_cost(
                     route, actual_pos, customer_id
@@ -506,7 +494,7 @@ class HNSWManager:
                 estimated_cost=insertion_cost,
             ))
             
-            # OPTIMIZATION: Stop early if we have enough candidates
+            # Stop early if we have enough candidates
             if len(candidates) >= k * 2:
                 break
         
@@ -514,7 +502,7 @@ class HNSWManager:
         candidates.sort(key=lambda c: c.distance)
         candidates = candidates[:k]
         
-        # OPTIMIZATION: Lazy compute costs for selected candidates
+        # Lazy compute costs for selected candidates
         for c in candidates:
             if c.estimated_cost is None:
                 route = self._route_lookup.get(c.route_id)
@@ -544,7 +532,7 @@ class HNSWManager:
     ) -> Dict[int, List[InsertionCandidate]]:
         """Find insertion candidates for multiple customers.
         
-        OPTIMIZED batch query using pre-computed features and vectorized HNSW.
+        Batch query using pre-computed features and vectorized HNSW.
         
         Args:
             customer_ids: List of customer IDs
@@ -556,10 +544,10 @@ class HNSWManager:
         """
         k = k or self._adaptive_k_value
         
-        # OPTIMIZATION: Update route lookup before batch processing
+        # Update route lookup before batch processing
         self._build_route_lookup(solution)
         
-        # OPTIMIZATION: Use pre-computed features when available
+        # Use pre-computed features when available
         queries_list = []
         for cid in customer_ids:
             if cid in self._customer_features:
@@ -572,10 +560,7 @@ class HNSWManager:
         index_size = len(self._index)
         requested_k = k * 2  # Get 2x for filtering
         
-        # Apply same SOTA fallback logic as single query
         if index_size < 30:
-            # Extremely small index: use optimized linear scan
-            # PUBLICATION: Track skipped queries
             self._n_skipped_hnsw += len(customer_ids)
             # Use optimized linear scan for all customers
             results = {}
@@ -654,7 +639,7 @@ class HNSWManager:
         k: int,
         solution: 'Solution',
     ) -> List['InsertionCandidate']:
-        """SOTA: Optimized vectorized linear scan in feature space.
+        """Optimized vectorized linear scan in feature space.
         
         Instead of brute force, uses:
         - Vectorized distance computation (NumPy)
@@ -688,7 +673,7 @@ class HNSWManager:
         if not all_features:
             return []
         
-        # SOTA: Vectorized distance computation
+        # Vectorized distance computation
         features_array = np.array(all_features, dtype=np.float32)
         query_array = np.asarray(query_vector, dtype=np.float32).reshape(1, -1)
         
@@ -730,7 +715,7 @@ class HNSWManager:
         """Filter candidates by capacity and time windows.
         
         Used for optimized linear scan results to ensure feasibility.
-        SOTA: Same filtering logic as HNSW results for consistency.
+        Same filtering logic as HNSW results for consistency.
         
         Args:
             candidates: Candidates from optimized linear scan
@@ -825,12 +810,12 @@ class HNSWManager:
         should_rebuild = force_rebuild or self._should_rebuild()
         
         # Auto-rebuild on high failure rate (indicates fragmentation)
-        # IMPROVEMENT: Adaptive threshold based on index size + cooldown period
+        # Adaptive threshold based on index size + cooldown period
         if not should_rebuild and self._n_queries > 100:
             total_attempts = self._n_queries + self._n_hnsw_failures
             failure_rate = self._n_hnsw_failures / total_attempts if total_attempts > 0 else 0.0
             
-            # IMPROVEMENT: Adaptive failure rate threshold
+            # Adaptive failure rate threshold
             # Large indices fragment faster, need more aggressive rebuilds
             index_size = len(self._index) if self._index else 0
             if index_size > 3000:
@@ -841,7 +826,7 @@ class HNSWManager:
                 failure_threshold = 0.20  # Small-medium: rebuild at 20% failure rate
             
             if failure_rate > failure_threshold:
-                # IMPROVEMENT: Cooldown period - don't rebuild if last rebuild was recent
+                # Cooldown period - don't rebuild if last rebuild was recent
                 # Prevents rebuild loops when failure rate is temporarily high
                 current_iteration = getattr(self, '_current_iteration', 0)
                 iterations_since_rebuild = current_iteration - self._last_rebuild_iteration
@@ -862,11 +847,11 @@ class HNSWManager:
         
         if should_rebuild:
             self._rebuild_index(solution)
-            # IMPROVEMENT: Track rebuild iteration for cooldown
+            # Track rebuild iteration for cooldown
             current_iteration = getattr(self, '_current_iteration', 0)
             self._last_rebuild_iteration = current_iteration
             
-            # MONITORING: Log rebuild vs incremental ratio
+            # Log rebuild vs incremental ratio
             total_updates = self._n_rebuilds + self._n_incremental_updates
             if total_updates > 0:
                 incremental_ratio = self._n_incremental_updates / total_updates
@@ -884,7 +869,7 @@ class HNSWManager:
     def _should_rebuild(self) -> bool:
         """Check if index should be rebuilt.
         
-        IMPROVEMENT: Adaptive rebuild threshold based on index size.
+        Adaptive rebuild threshold based on index size.
         Large indices fragment faster and need more frequent rebuilds.
         """
         if self._index is None:
@@ -896,7 +881,7 @@ class HNSWManager:
         
         delete_ratio = self._n_deleted / total
         
-        # IMPROVEMENT: Adaptive rebuild threshold
+        # Adaptive rebuild threshold
         # Large indices fragment faster, need more frequent rebuilds
         index_size = len(self._index) if self._index else 0
         if index_size > 3000:
@@ -924,7 +909,7 @@ class HNSWManager:
         logger.debug(f"HNSW index rebuilt: {len(self._index)} entries (total rebuilds: {self._n_rebuilds})")
     
     def _incremental_update(self, solution: 'Solution') -> None:
-        """SOTA: True incremental update using topology-aware localized updates.
+        """True incremental update using topology-aware localized updates.
         
         Based on research (SPFresh, LSM-VEC, topology-aware updates):
         - Only update affected routes instead of full rebuild
@@ -934,7 +919,7 @@ class HNSWManager:
         Args:
             solution: Updated solution
         """
-        # SOTA: Identify changed routes (topology-aware strategy)
+        # Identify changed routes (topology-aware strategy)
         # Track which routes have changed by comparing route customers
         changed_route_ids = set()
         
@@ -964,12 +949,6 @@ class HNSWManager:
             # No changes detected, skip update
             logger.debug("No route changes detected, skipping incremental update")
             return
-        
-        # MONITORING: Log incremental update effectiveness (INFO level for visibility)
-       # logger.info(f"Incremental update: {len(changed_route_ids)} routes changed out of {len(current_route_lookup)} total routes")
-        
-        # SOTA: Batch update - accumulate changes then apply
-        # First, invalidate old positions for changed routes (lazy deletion)
         positions_to_remove = []
         n_old_positions = 0
         for route_id in changed_route_ids:
@@ -996,7 +975,7 @@ class HNSWManager:
         # Update encoder stats for fairness features
         self._encoder.update_solution_stats(solution)
         
-        # SOTA: Encode only changed routes (topology-aware localized update)
+        # Encode only changed routes (topology-aware localized update)
         new_positions = []
         new_labels = []
         
@@ -1022,7 +1001,7 @@ class HNSWManager:
                     new_labels.append(label)
                     self._label_to_feature[full_label] = feature
         
-        # SOTA: Batch add new positions (more efficient than one-by-one)
+        # Batch add new positions (more efficient than one-by-one)
         if new_positions:
             features_array = np.array(new_positions, dtype=np.float32)
             self._index.add_items(features_array, new_labels)
@@ -1032,13 +1011,7 @@ class HNSWManager:
         
         # Track incremental update
         self._n_incremental_updates += 1
-        
-        # MONITORING: Log incremental update effectiveness (INFO level for visibility)
         n_new_positions = len(new_positions) if new_positions else 0
-       # logger.info(
-        #    f"Incremental update complete: removed {n_old_positions} old positions, "
-        #    f"added {n_new_positions} new positions (net change: {n_new_positions - n_old_positions})"
-        #)
     
     def invalidate_route(self, route_id: int) -> None:
         """Invalidate all positions for a route.
@@ -1069,14 +1042,14 @@ class HNSWManager:
             if (self._n_queries + self._n_cache_hits) > 0 else 0.0
         )
         
-        # SOTA: Calculate incremental update ratio
+        # Calculate incremental update ratio
         total_updates = self._n_rebuilds + self._n_incremental_updates
         incremental_ratio = (
             self._n_incremental_updates / total_updates
             if total_updates > 0 else 0.0
         )
         
-        # OPTION C: Calculate HNSW success rate
+        # Calculate HNSW success rate
         # _n_queries counts all attempts, _n_hnsw_failures counts failures
         # Success rate = (attempts - failures) / attempts = successful / total
         total_attempts = self._n_queries  # _n_queries already counts all attempts
@@ -1086,7 +1059,6 @@ class HNSWManager:
             if total_attempts > 0 else 1.0
         )
         
-        # PUBLICATION: Calculate usage statistics for transparency
         total_queries_attempted = self._n_queries + self._n_hnsw_failures + self._n_skipped_hnsw
         hnsw_usage_rate = (
             (self._n_queries + self._n_hnsw_failures) / total_queries_attempted
@@ -1104,17 +1076,16 @@ class HNSWManager:
             "avg_query_time_ms": avg_query_time * 1000,
             "total_query_time_s": self._total_query_time,
             "n_rebuilds": self._n_rebuilds,
-            "n_incremental_updates": self._n_incremental_updates,  # SOTA: Track incremental updates
-            "incremental_ratio": incremental_ratio,  # SOTA: Ratio of incremental vs rebuild
+            "n_incremental_updates": self._n_incremental_updates,  # Track incremental updates
+            "incremental_ratio": incremental_ratio,  # Ratio of incremental vs rebuild
             "index_size": len(self._index) if self._index else 0,
             "n_hnsw_failures": self._n_hnsw_failures,  # Track failures
             "hnsw_success_rate": hnsw_success_rate,  # Success rate (0.0-1.0)
-            # PUBLICATION: Usage statistics for paper transparency
             "n_skipped_hnsw": self._n_skipped_hnsw,  # Skipped due to small index size (<50)
             "n_optimized_scan_fallbacks": self._n_optimized_scan_fallbacks,  # Fallbacks to optimized linear scan
             "hnsw_usage_rate": hnsw_usage_rate,  # % of queries that attempted HNSW (0.0-1.0)
             "optimized_scan_usage_rate": optimized_scan_usage_rate,  # % of queries that used optimized linear scan (0.0-1.0)
-            "health_by_size": self._get_health_statistics(),  # SOTA: Health monitoring statistics
+            "health_by_size": self._get_health_statistics(),  # 
         }
     
     def _get_size_range(self, index_size: int) -> str:
@@ -1137,20 +1108,20 @@ class HNSWManager:
             return ">3000"
     
     def _record_successful_query(self, size_range: str) -> None:
-        """SOTA: Record successful query for health monitoring."""
+        """Record successful query for health monitoring."""
         if size_range not in self._query_count_by_size:
             self._query_count_by_size[size_range] = 0
             self._failure_count_by_size[size_range] = 0
         self._query_count_by_size[size_range] = self._query_count_by_size.get(size_range, 0) + 1
     
     def _record_failed_query(self, size_range: str) -> None:
-        """SOTA: Record failed query for health monitoring."""
+        """Record failed query for health monitoring."""
         if size_range not in self._failure_count_by_size:
             self._failure_count_by_size[size_range] = 0
         self._failure_count_by_size[size_range] = self._failure_count_by_size.get(size_range, 0) + 1
     
     def _get_health_factor(self, size_range: str) -> float:
-        """SOTA: Get health factor (0.0 = unhealthy, 1.0 = healthy) based on failure rate.
+        """Get health factor (0.0 = unhealthy, 1.0 = healthy) based on failure rate.
         
         Inspired by LSM-VEC's adaptive neighbor selection and HENN's robustness guarantees.
         """
@@ -1167,7 +1138,7 @@ class HNSWManager:
         
         failure_rate = failure_count / query_count
         
-        # SOTA: Health factor based on failure rate
+        # Health factor based on failure rate
         # 0% failure → 1.0 (healthy)
         # 10% failure → 0.9 (slightly unhealthy)
         # 20% failure → 0.7 (unhealthy)
@@ -1187,7 +1158,7 @@ class HNSWManager:
             return 0.2  # Very critical health
     
     def _get_health_statistics(self) -> Dict[str, Dict[str, float]]:
-        """SOTA: Get health statistics by size range."""
+        """Get health statistics by size range."""
         health_by_size = {}
         for size_range in self._query_count_by_size:
             query_count = self._query_count_by_size[size_range]
@@ -1208,7 +1179,7 @@ class HNSWManager:
         self._n_queries = 0
         self._n_cache_hits = 0
         self._total_query_time = 0.0
-        self._n_incremental_updates = 0  # SOTA: Reset incremental update counter
+        self._n_incremental_updates = 0  # Reset incremental update counter
         self._n_hnsw_failures = 0  # Reset failure counter
         self._n_skipped_hnsw = 0  # Reset skipped counter
         self._n_optimized_scan_fallbacks = 0  # Reset optimized scan fallback counter
@@ -1222,7 +1193,7 @@ def create_hnsw_manager(
     k_candidates: int = 10,
     M: int = 16,
     ef_search: int = 50,
-    use_fairness: bool = True,  # Kept for API compatibility (ignored)
+    use_fairness: bool = True,
 ) -> HNSWManager:
     """Factory function to create an HNSWManager.
     

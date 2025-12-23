@@ -28,18 +28,6 @@ def parse_solomon(filepath: str | Path) -> VRPInstance:
         
     Returns:
         Parsed VRPInstance
-        
-    Example file:
-        C101
-        
-        VEHICLE
-        NUMBER     CAPACITY
-          25         200
-        
-        CUSTOMER
-        CUST NO.   XCOORD.   YCOORD.    DEMAND   READY TIME   DUE DATE   SERVICE TIME
-            0      40        50           0          0       1236          0
-            1      45        68          10        912        967         90
     """
     filepath = Path(filepath)
     

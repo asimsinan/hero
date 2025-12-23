@@ -7,8 +7,6 @@ Tests on ALL available benchmarks:
 - Homberger Extended (n=200-1000)  
 - CVRP X Instances (n=101-1001)
 - Euro-NeurIPS 2022 Real-World (n=200-880)
-
-With progress tracking and result saving.
 """
 
 import sys
@@ -443,8 +441,6 @@ def _convert_to_pyvrp(instance):
     )
     
     # Convert distance/time matrices to integers
-    # Note: PyVRP expects matrices for all depots and clients
-    # Our matrix includes depot at index 0, so we need to adjust
     dist_matrix = (instance.distance_matrix * SCALE).astype(np.int64)
     time_matrix = (instance.time_matrix * SCALE).astype(np.int64) if instance.time_matrix is not None else dist_matrix
     

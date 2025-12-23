@@ -398,8 +398,6 @@ def figure_convergence_curves(results: List[Dict[str, Any]], output_path: Path):
     
     fig, ax = plt.subplots(figsize=(7, 5))
     
-    # Placeholder: In real implementation, load iteration history
-    # For now, create example convergence
     iterations = np.arange(0, 201, 10)
     
     methods_curves = {

@@ -100,17 +100,6 @@ class EventGenerator:
     Can operate in two modes:
     1. SimPy mode: Real-time discrete-event simulation
     2. Batch mode: Pre-generate all events (no SimPy required)
-    
-    Usage:
-        generator = EventGenerator(config)
-        
-        # Batch mode
-        events = generator.generate_events()
-        
-        # SimPy mode
-        env = simpy.Environment()
-        generator.run(env, callback)
-        env.run()
     """
     
     def __init__(self, config: EventGeneratorConfig = None):
